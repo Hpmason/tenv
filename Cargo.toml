@@ -1,0 +1,12 @@
+[package]
+name = "tenv"
+version = "0.1.0"
+edition = "2021"
+authors = ["Mason Ginter <mason@dagint.com>"]
+keywords = ["environment", "variables", "env"]
+license = "MIT OR Apache-2.0"
+description = "small application for running commands with temporary environment variables"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+thiserror = "1.0"
