@@ -1,15 +1,14 @@
 use std::{
     collections::HashMap,
-    env::Args,
     io,
-    iter::Peekable,
     process::{Command, ExitStatus},
 };
 
+use clap::Parser;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum Error {
+pub enum TEnvError {
     #[error("unable to parse environment variables")]
     ParseEnvironmentVariables,
     #[error("missing command")]
@@ -19,123 +18,71 @@ pub enum Error {
     #[error("{0}")]
     Other(String),
 }
-/// Gets command args from environment and converts them to CommandArgs
-pub fn env_args() -> Result<CommandArgs, Error> {
-    // Args from environment
-    let args = std::env::args();
-    println!("{args:?}");
 
-    // Make peekable
-    let mut peek_args = args.into_iter().peekable();
-    // Read off this program's name
-    peek_args.next().expect("command name to bein args");
-
-    // Get environment variable assignments
-    // [name]=[value]
-    let env_vars = get_env_var_assignments(&mut peek_args)?;
-
-    // Next arg should be command
-    let command = peek_args.next().ok_or(Error::MissingCommand)?;
-    // After command should be any args
-    let command_args = get_command_args(peek_args);
-
-    Ok(CommandArgs {
-        env_vars,
-        command,
-        command_args,
-    })
+#[derive(Debug, Clone, Parser)]
+#[clap(author, version, about, long_about = None)]
+pub struct CommandArgs {
+    /// list of env var assignments
+    #[clap(short('e'), value_parser(parse_key_val::<String, String>))]
+    env_vars: Vec<(String, String)>,
+    /// Command being run
+    #[clap(required(true))]
+    command: String,
+    /// command and args to be run
+    #[clap(last(true))]
+    args: Vec<String>,
 }
 
-fn get_command_args(peek_args: Peekable<Args>) -> Vec<String> {
-    let mut inner_args = Vec::new();
-    for a in peek_args {
-        inner_args.push(a);
-    }
-    inner_args
-}
-
-fn get_env_var_assignments<T>(arg_iter: &mut Peekable<T>) -> Result<HashMap<String, String>, Error>
+/// Parse a single key-value pair
+/// taken from https://docs.rs/clap/latest/clap/_derive/_cookbook/typed_derive/index.html
+fn parse_key_val<T, U>(
+    s: &str,
+) -> Result<(T, U), Box<dyn std::error::Error + Send + Sync + 'static>>
 where
-    T: Iterator<Item = String>,
+    T: std::str::FromStr,
+    T::Err: std::error::Error + Send + Sync + 'static,
+    U: std::str::FromStr,
+    U::Err: std::error::Error + Send + Sync + 'static,
 {
-    let mut env_vars = HashMap::new();
-    while let Some(env_assignment) = arg_iter.next_if(|arg| {
-        // [arg_name]=[arg_value]
-        arg.split("=").count() == 2
-    }) {
-        // Get var name and value to set to
-        let (var_name, var_value) = {
-            // Split at '='
-            let mut split = env_assignment.split("=");
-            // Get from Split iterator
-            let name = split.next().expect("already checked for 2 long");
-            let value = split.next().expect("already checked for 2 long");
-            // Return
-            (name.to_string(), value.to_string())
-        };
-        // Add to vec
-        env_vars.insert(var_name, var_value);
-    }
-    Ok(env_vars)
+    let pos = s
+        .find('=')
+        .ok_or_else(|| format!("invalid KEY=value: no `=` found in `{}`", s))?;
+    Ok((s[..pos].parse()?, s[pos + 1..].parse()?))
 }
 
-///
+/// Runs command, while setting environment variables before unsets them after command is completed
 pub fn run(command_args: CommandArgs) -> Result<ExitStatus, io::Error> {
+    let hash_map_args: HashMap<String, String> =
+        HashMap::from_iter(command_args.env_vars.clone().into_iter());
     let status = Command::new(&command_args.command)
-        .args(&command_args.command_args)
-        .envs(&command_args.env_vars)
+        .args(&command_args.args)
+        .envs(hash_map_args)
         .status();
 
     // Check if error running command
     if status.is_err() {
         // If error, try running it as a system command
         if matches!(status.as_ref().unwrap_err().kind(), io::ErrorKind::NotFound) {
-            let status = run_as_system_command(&command_args.clone());
-            return Ok(status?);
+            return run_as_system_command(&command_args);
         }
     }
-    Ok(status?)
+    status
 }
 
 /// If not found as a binary, try running it through cmd or bash directly
 fn run_as_system_command(command_args: &CommandArgs) -> Result<ExitStatus, io::Error> {
     // Get shell and command line argument to run command through shell
-    let (shell, flag) = if cfg!(unix) || cfg!(linux) {
-        ("bash", "-c")
-    } else if cfg!(windows) {
+    let (shell, flag) = if cfg!(windows) {
         ("powershell", "-Command")
     } else {
-        unimplemented!()
+        ("bash", "-c")
     };
 
     let mut args: Vec<String> = vec![flag.to_string(), command_args.command.clone()];
-    args.extend_from_slice(&command_args.command_args);
-    println!(
-        "Running command `{}` through `{shell}` with args: {args:?}",
-        command_args.command
-    );
-    let status = Command::new(shell)
-        .args(args)
-        .envs(&command_args.env_vars)
-        .status();
-    Ok(status?)
+    args.extend_from_slice(&command_args.args);
+    
+    let hash_map_env: HashMap<String, String> =
+        HashMap::from_iter(command_args.env_vars.clone().into_iter());
+    let status = Command::new(shell).args(args).envs(hash_map_env).status();
+    status
 }
-
-#[derive(Debug, Clone)]
-/// Params for env-handler
-pub struct CommandArgs {
-    /// list of env var assignments
-    env_vars: HashMap<String, String>,
-    /// command and args to be run
-    command: String,
-    command_args: Vec<String>,
-}
-
-// #[derive(Debug, Clone)]
-// struct ArgAssignment {
-//     var_name: String,
-//     var_value: String,
-// }
-
-#[derive(Debug, Clone)]
-struct ArgAssignment(String, String);

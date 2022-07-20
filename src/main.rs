@@ -1,7 +1,10 @@
-use tenv::{env_args, run, Error};
-fn main() -> Result<(), Error> {
-    let args = env_args().unwrap();
-    println!("{args:?}");
-    run(args)?;
+use clap::Parser;
+use tenv::{run, CommandArgs, TEnvError};
+fn main() -> Result<(), TEnvError> {
+    let args: CommandArgs = CommandArgs::parse();
+    // println!("{args:?}");
+    if let Err(e) = run(args) {
+        println!("Error running command with TEnv: {e}");
+    }
     Ok(())
 }
