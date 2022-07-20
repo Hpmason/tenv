@@ -1,8 +1,9 @@
 use std::{
+    collections::HashMap,
     env::Args,
     io,
     iter::Peekable,
-    process::{Command, ExitStatus}, collections::HashMap,
+    process::{Command, ExitStatus},
 };
 
 use thiserror::Error;
@@ -90,14 +91,14 @@ pub fn run(command_args: CommandArgs) -> Result<ExitStatus, io::Error> {
         // If error, try running it as a system command
         if matches!(status.as_ref().unwrap_err().kind(), io::ErrorKind::NotFound) {
             let status = run_as_system_command(&command_args.clone());
-            return Ok(status?)
+            return Ok(status?);
         }
     }
     Ok(status?)
 }
 
 /// If not found as a binary, try running it through cmd or bash directly
-fn run_as_system_command(command_args: &CommandArgs)  -> Result<ExitStatus, io::Error> {
+fn run_as_system_command(command_args: &CommandArgs) -> Result<ExitStatus, io::Error> {
     // Get shell and command line argument to run command through shell
     let (shell, flag) = if cfg!(unix) || cfg!(linux) {
         ("bash", "-c")
@@ -109,11 +110,14 @@ fn run_as_system_command(command_args: &CommandArgs)  -> Result<ExitStatus, io::
 
     let mut args: Vec<String> = vec![flag.to_string(), command_args.command.clone()];
     args.extend_from_slice(&command_args.command_args);
-    println!("Running command `{}` through `{shell}` with args: {args:?}", command_args.command);
+    println!(
+        "Running command `{}` through `{shell}` with args: {args:?}",
+        command_args.command
+    );
     let status = Command::new(shell)
-            .args(args)
-            .envs(&command_args.env_vars)
-            .status();
+        .args(args)
+        .envs(&command_args.env_vars)
+        .status();
     Ok(status?)
 }
 
@@ -134,4 +138,4 @@ pub struct CommandArgs {
 // }
 
 #[derive(Debug, Clone)]
-struct ArgAssignment (String, String);
+struct ArgAssignment(String, String);
