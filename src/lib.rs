@@ -2,7 +2,7 @@ use std::{
     env::Args,
     io,
     iter::Peekable,
-    process::{Command, ExitStatus},
+    process::{Command, ExitStatus}, collections::HashMap,
 };
 
 use thiserror::Error;
@@ -53,11 +53,11 @@ fn get_command_args(peek_args: Peekable<Args>) -> Vec<String> {
     inner_args
 }
 
-fn get_env_var_assignments<T>(arg_iter: &mut Peekable<T>) -> Result<Vec<ArgAssignment>, Error>
+fn get_env_var_assignments<T>(arg_iter: &mut Peekable<T>) -> Result<HashMap<String, String>, Error>
 where
     T: Iterator<Item = String>,
 {
-    let mut env_vars = Vec::new();
+    let mut env_vars = HashMap::new();
     while let Some(env_assignment) = arg_iter.next_if(|arg| {
         // [arg_name]=[arg_value]
         arg.split("=").count() == 2
@@ -73,48 +73,65 @@ where
             (name.to_string(), value.to_string())
         };
         // Add to vec
-        env_vars.push(ArgAssignment {
-            var_name,
-            var_value,
-        });
+        env_vars.insert(var_name, var_value);
     }
     Ok(env_vars)
 }
 
 ///
 pub fn run(command_args: CommandArgs) -> Result<ExitStatus, io::Error> {
-    set_args(&command_args.env_vars);
-    let status = Command::new(command_args.command)
-        .args(command_args.command_args)
+    let status = Command::new(&command_args.command)
+        .args(&command_args.command_args)
+        .envs(&command_args.env_vars)
         .status();
-    unset_args(&command_args.env_vars);
+
+    // Check if error running command
+    if status.is_err() {
+        // If error, try running it as a system command
+        if matches!(status.as_ref().unwrap_err().kind(), io::ErrorKind::NotFound) {
+            let status = run_as_system_command(&command_args.clone());
+            return Ok(status?)
+        }
+    }
     Ok(status?)
 }
 
-fn set_args(var_assignments: &Vec<ArgAssignment>) {
-    for assignment in var_assignments {
-        std::env::set_var(&assignment.var_name, &assignment.var_value);
-    }
+/// If not found as a binary, try running it through cmd or bash directly
+fn run_as_system_command(command_args: &CommandArgs)  -> Result<ExitStatus, io::Error> {
+    // Get shell and command line argument to run command through shell
+    let (shell, flag) = if cfg!(unix) || cfg!(linux) {
+        ("bash", "-c")
+    } else if cfg!(windows) {
+        ("powershell", "-Command")
+    } else {
+        unimplemented!()
+    };
+
+    let mut args: Vec<String> = vec![flag.to_string(), command_args.command.clone()];
+    args.extend_from_slice(&command_args.command_args);
+    println!("Running command `{}` through `{shell}` with args: {args:?}", command_args.command);
+    let status = Command::new(shell)
+            .args(args)
+            .envs(&command_args.env_vars)
+            .status();
+    Ok(status?)
 }
 
-fn unset_args(var_assignments: &Vec<ArgAssignment>) {
-    for assignment in var_assignments {
-        std::env::remove_var(&assignment.var_name);
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// Params for env-handler
 pub struct CommandArgs {
     /// list of env var assignments
-    env_vars: Vec<ArgAssignment>,
+    env_vars: HashMap<String, String>,
     /// command and args to be run
     command: String,
     command_args: Vec<String>,
 }
 
-#[derive(Debug)]
-struct ArgAssignment {
-    var_name: String,
-    var_value: String,
-}
+// #[derive(Debug, Clone)]
+// struct ArgAssignment {
+//     var_name: String,
+//     var_value: String,
+// }
+
+#[derive(Debug, Clone)]
+struct ArgAssignment (String, String);
