@@ -25,10 +25,10 @@ pub struct CommandArgs {
     /// list of env var assignments
     #[clap(short('e'), value_parser(parse_key_val::<String, String>))]
     env_vars: Vec<(String, String)>,
-    /// Command being run
+    /// program being run
     #[clap(required(true))]
-    command: String,
-    /// command and args to be run
+    program: String,
+    /// args for program to be run
     #[clap(last(true))]
     args: Vec<String>,
 }
@@ -54,7 +54,7 @@ where
 pub fn run(command_args: CommandArgs) -> Result<ExitStatus, io::Error> {
     let hash_map_args: HashMap<String, String> =
         HashMap::from_iter(command_args.env_vars.clone().into_iter());
-    let status = Command::new(&command_args.command)
+    let status = Command::new(&command_args.program)
         .args(&command_args.args)
         .envs(hash_map_args)
         .status();
@@ -78,7 +78,7 @@ fn run_as_system_command(command_args: &CommandArgs) -> Result<ExitStatus, io::E
         ("bash", "-c")
     };
 
-    let mut args: Vec<String> = vec![flag.to_string(), command_args.command.clone()];
+    let mut args: Vec<String> = vec![flag.to_string(), command_args.program.clone()];
     args.extend_from_slice(&command_args.args);
     
     let hash_map_env: HashMap<String, String> =
