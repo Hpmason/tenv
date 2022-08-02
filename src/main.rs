@@ -1,10 +1,11 @@
 use clap::Parser;
-use tenv::{run, CommandArgs, TEnvError};
-fn main() -> Result<(), TEnvError> {
+use tenv::{run, CommandArgs};
+
+fn main() {
+    // Get CLI args
     let args: CommandArgs = CommandArgs::parse();
-    // println!("{args:?}");
-    if let Err(e) = run(args) {
+    // Run program and print error if there is one
+    if let Err(e) = run(&args) {
         println!("Error running command with TEnv: {e}");
     }
-    Ok(())
 }
