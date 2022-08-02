@@ -45,12 +45,12 @@ pub fn run(command_args: &CommandArgs) -> Result<ExitStatus, io::Error> {
     // Convert Vec of env vars to HashMap
     let hash_map_vars: HashMap<String, String> =
         command_args.env_vars.clone().into_iter().collect();
-    
+
     // Get shell and appropriate flag to run command through OS shell
     let (shell, flag) = get_shell_and_flag();
     // Combine flag with program and its args [flag, program name, rest of args]
     let final_args = {
-        let mut args=  vec![flag.to_string(), command_args.program.clone()];
+        let mut args = vec![flag.to_string(), command_args.program.clone()];
         args.extend(command_args.args.clone());
         args
     };
@@ -58,7 +58,8 @@ pub fn run(command_args: &CommandArgs) -> Result<ExitStatus, io::Error> {
     // Build command with shell
     let mut command = Command::new(shell);
     // Add args for shell to run command
-    command.args(&final_args)
+    command
+        .args(&final_args)
         // Set env variables
         .envs(hash_map_vars);
     // If path_additions passed to CLI, get and set to new path
@@ -68,20 +69,17 @@ pub fn run(command_args: &CommandArgs) -> Result<ExitStatus, io::Error> {
         // Set PATH env var
         command.env("PATH", new_path);
     }
-    
-    // Run command and return status 
+
+    // Run command and return status
     command.status()
 }
 
-/// Generate new PATH from appending path additions to existing PATH 
+/// Generate new PATH from appending path additions to existing PATH
 fn get_appended_path(path_additions: &[String]) -> String {
     // Canonicalize paths so we can add to PATH
     let mut path_additions: Vec<String> = path_additions
         .iter()
-        .flat_map(|s| {
-            fs::canonicalize(s)
-                .map(|can_path| can_path.to_string_lossy().to_string())
-        })
+        .flat_map(|s| fs::canonicalize(s).map(|can_path| can_path.to_string_lossy().to_string()))
         .collect();
     // get original path variable
     let original_path: Vec<String> = env::split_paths(&env::var("PATH").unwrap_or_default())
@@ -91,7 +89,7 @@ fn get_appended_path(path_additions: &[String]) -> String {
 
     // Add out additions to the beginning of the PATH
     path_additions.extend(original_path);
-    
+
     // join paths to get our new PATH environment variable
     let new_path = env::join_paths(path_additions).expect("could not join paths");
     new_path.to_string_lossy().to_string()
