@@ -5,19 +5,6 @@ use std::{
 };
 
 use clap::Parser;
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-pub enum TEnvError {
-    #[error("unable to parse environment variables")]
-    ParseEnvironmentVariables,
-    #[error("missing command")]
-    MissingCommand,
-    #[error("error running {0}")]
-    CommandRunError(#[from] io::Error),
-    #[error("{0}")]
-    Other(String),
-}
 
 #[derive(Debug, Clone, Parser)]
 #[clap(author, version, about, long_about = None)]
