@@ -73,6 +73,7 @@ pub fn run(command_args: &CommandArgs) -> Result<ExitStatus, io::Error> {
     command.status()
 }
 
+/// Generate new PATH from appending path additions to existing PATH 
 fn get_appended_path(path_additions: &[String]) -> String {
     // Canonicalize paths so we can add to PATH
     let path_additions: Vec<String> = path_additions
@@ -96,7 +97,7 @@ fn get_appended_path(path_additions: &[String]) -> String {
     new_path.to_string_lossy().to_string()
 }
 
-
+/// Return ("powershell", "-Command") for windows or ("bash", "-c") for any other OS
 const fn get_shell_and_flag<'a>() -> (&'a str, &'a str) {
     if cfg!(windows) {
         ("powershell", "-Command")
