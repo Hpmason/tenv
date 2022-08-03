@@ -9,16 +9,16 @@ use clap::Parser;
 #[derive(Debug, Clone, Parser)]
 #[clap(author, version, about, long_about = None)]
 pub struct CommandArgs {
-    /// list of env var assignments to be set when running program
+    /// List of env var assignments to be set when running program
     #[clap(short('e'), value_parser(parse_key_val::<String, String>))]
     env_vars: Vec<(String, String)>,
-    /// entries to add to the path variable when running program
+    /// Entries to add to the path variable when running program
     #[clap(short('p'))]
     path_additions: Vec<String>,
-    /// program being run
+    /// Program being run
     #[clap(required(true))]
     program: String,
-    /// args for program to be run
+    /// Args for program to be run
     #[clap(last(true))]
     args: Vec<String>,
 }
