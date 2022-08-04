@@ -76,7 +76,7 @@ pub fn run(command_args: &CommandArgs) -> Result<ExitStatus, io::Error> {
 /// Generate new PATH from appending path additions to existing PATH 
 fn get_appended_path(path_additions: &[String]) -> String {
     // Canonicalize paths so we can add to PATH
-    let path_additions: Vec<String> = path_additions
+    let mut path_additions: Vec<String> = path_additions
         .iter()
         .flat_map(|s| {
             fs::canonicalize(s)
@@ -84,13 +84,13 @@ fn get_appended_path(path_additions: &[String]) -> String {
         })
         .collect();
     // get original path variable
-    let mut original_path: Vec<String> = env::split_paths(&env::var("PATH").unwrap_or_default())
+    let original_path: Vec<String> = env::split_paths(&env::var("PATH").unwrap_or_default())
         // Convert paths to String
         .map(|path| path.to_string_lossy().to_string())
         .collect();
 
-    // Add out additions to the end of the PATH
-    original_path.extend(path_additions);
+    // Add out additions to the beginning of the PATH
+    path_additions.extend(original_path);
     
     // join paths to get our new PATH environment variable
     let new_path = env::join_paths(original_path).expect("could not join paths");
