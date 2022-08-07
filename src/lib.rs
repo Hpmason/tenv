@@ -40,6 +40,16 @@ where
     Ok((s[..pos].parse()?, s[pos + 1..].parse()?))
 }
 
+/// ctrl+c handler so that tenv itself can't be interrupted.
+/// Commands run by tenv can still be cancelled, therefore ending the execution of tenv.
+/// Not doing this causes problems with starship on powershell.
+pub fn init_ctrlc_handler() -> Result<(), ctrlc::Error> {
+    // Set empty ctrl+c handler, just so doesn't stop tenv itself when ctrl+c entered
+    ctrlc::set_handler(move || {
+        // println!("ctrl+c pressed");
+    })
+}
+
 /// Runs command, while setting environment variables before unsets them after command is completed
 pub fn run(command_args: &CommandArgs) -> Result<ExitStatus, io::Error> {
     // Convert Vec of env vars to HashMap

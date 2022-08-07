@@ -10,3 +10,4 @@ description = "Small CLI for running commands with temporary environment variabl
 
 [dependencies]
 clap = { version = "3.2.13", features = ["derive"] }
+ctrlc = "3.2.2"
