@@ -1,6 +1,6 @@
 [package]
 name = "tenv"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Mason Ginter <mason@dagint.com>"]
 keywords = ["environment", "variables", "env"]
@@ -10,4 +10,4 @@ description = "Small CLI for running commands with temporary environment variabl
 
 [dependencies]
 clap = { version = "3.2.13", features = ["derive"] }
-thiserror = "1.0"
+ctrlc = "3.2.2"
