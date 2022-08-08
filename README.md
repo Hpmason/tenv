@@ -1,6 +1,14 @@
 # tenv (temporary environment)
 Small CLI app for running commands with temporary environment variables. Super useful on Windows/Powershell where you can't easily set temp variables inline with command being run.
-
+## Installation
+Install from http://crates.io via `cargo`
+```
+cargo install --locked tenv
+```
+Install from source
+```
+cargo install --path .
+```
 ## Uses
 ### Running commands
 Bash
