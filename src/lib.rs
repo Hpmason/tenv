@@ -1,12 +1,12 @@
 use std::{
     collections::HashMap,
-    env, fs, io,
-    process::{Command, ExitStatus},
+    env, io,
+    process::{Command, ExitStatus}, path::PathBuf, ffi::OsString,
 };
 
 use clap::Parser;
 
-#[derive(Debug, Clone, Parser)]
+#[derive(Debug, Parser)]
 #[clap(author, version, about, long_about = None)]
 pub struct CommandArgs {
     /// List of env var assignments to be set when running program
@@ -21,6 +21,70 @@ pub struct CommandArgs {
     /// Args for program to be run
     #[clap(last(true))]
     args: Vec<String>,
+}
+
+impl CommandArgs {
+    /// Get list of args for `std::process::Command` (i.e. ["-c", program_name, ...args])
+    pub fn get_all_args() -> Self {
+        // Get args and parse any from argfile if provided
+        let mut args = argfile::expand_args(
+            argfile::parse_fromfile,
+            argfile::PREFIX,
+        ).unwrap();
+        // Filter out
+        args = args
+            .into_iter()
+            .filter(|arg| !arg.clone().into_string().unwrap().starts_with("#"))
+            .collect();
+        println!("argfile args: {args:?}");
+        // Get CLI args
+        let args: Self = Self::parse_from(args);
+        args
+    }
+    /// Generate new PATH from prepending path additions to existing PATH
+    fn get_prepended_path(&self) -> Option<OsString> {
+        if self.path_additions.is_empty() {
+            return None;
+        }
+        // Canonicalize paths so we can add to PATH
+        let mut path_additions: Vec<String> = self.path_additions
+            .iter()
+            .map(|s| {
+                dunce::simplified(&PathBuf::from(s))
+                    .to_string_lossy()
+                    // Sometimes there is white space at the beginning or end
+                    .trim()
+                    .to_string()
+            })
+            .collect();
+        // get original path variable
+        let original_path: Vec<String> = env::split_paths(&env::var("PATH").unwrap_or_default())
+            // Convert paths to String
+            .map(|path| path.to_string_lossy().to_string())
+            .collect();
+
+        // Add PATH to the end of the path additions
+        path_additions.extend(original_path);
+
+        // join paths to get our new PATH environment variable
+        let new_path = env::join_paths(path_additions).expect("could not join paths");
+        Some(new_path)
+    }
+
+    fn get_env_vars(&self) -> HashMap<String, String> {
+        self.env_vars
+            .clone()
+            .into_iter()
+            // .map(|(key, val)| (key.trim().to_string(), val.trim().to_string()))
+            .collect()
+    }
+
+    fn get_arg_list(&self) -> Vec<String> {
+        let (_, flag) = get_shell_and_flag();
+        let mut args = vec![flag.to_string(), self.program.clone()];
+        args.extend(self.args.clone());
+        args
+    }
 }
 
 /// Parse a single key-value pair
@@ -53,17 +117,12 @@ pub fn init_ctrlc_handler() -> Result<(), ctrlc::Error> {
 /// Runs command, while setting environment variables before unsets them after command is completed
 pub fn run(command_args: &CommandArgs) -> Result<ExitStatus, io::Error> {
     // Convert Vec of env vars to HashMap
-    let hash_map_vars: HashMap<String, String> =
-        command_args.env_vars.clone().into_iter().collect();
+    let hash_map_vars: HashMap<String, String> = command_args.get_env_vars();
 
     // Get shell and appropriate flag to run command through OS shell
-    let (shell, flag) = get_shell_and_flag();
+    let (shell, _) = get_shell_and_flag();
     // Combine flag with program and its args [flag, program name, rest of args]
-    let final_args = {
-        let mut args = vec![flag.to_string(), command_args.program.clone()];
-        args.extend(command_args.args.clone());
-        args
-    };
+    let final_args = command_args.get_arg_list();
 
     // Build command with shell
     let mut command = Command::new(shell);
@@ -72,10 +131,9 @@ pub fn run(command_args: &CommandArgs) -> Result<ExitStatus, io::Error> {
         .args(&final_args)
         // Set env variables
         .envs(hash_map_vars);
+    
     // If path_additions passed to CLI, get and set to new path
-    if !command_args.path_additions.is_empty() {
-        // Generate new PATH
-        let new_path = get_appended_path(&command_args.path_additions);
+    if let Some(new_path) = command_args.get_prepended_path() {
         // Set PATH env var
         command.env("PATH", new_path);
     }
@@ -84,26 +142,7 @@ pub fn run(command_args: &CommandArgs) -> Result<ExitStatus, io::Error> {
     command.status()
 }
 
-/// Generate new PATH from appending path additions to existing PATH
-fn get_appended_path(path_additions: &[String]) -> String {
-    // Canonicalize paths so we can add to PATH
-    let mut path_additions: Vec<String> = path_additions
-        .iter()
-        .flat_map(|s| fs::canonicalize(s).map(|can_path| can_path.to_string_lossy().to_string()))
-        .collect();
-    // get original path variable
-    let original_path: Vec<String> = env::split_paths(&env::var("PATH").unwrap_or_default())
-        // Convert paths to String
-        .map(|path| path.to_string_lossy().to_string())
-        .collect();
 
-    // Add out additions to the beginning of the PATH
-    path_additions.extend(original_path);
-
-    // join paths to get our new PATH environment variable
-    let new_path = env::join_paths(path_additions).expect("could not join paths");
-    new_path.to_string_lossy().to_string()
-}
 
 /// Return ("powershell", "-Command") for windows or ("bash", "-c") for any other OS
 const fn get_shell_and_flag<'a>() -> (&'a str, &'a str) {
