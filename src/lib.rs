@@ -38,7 +38,15 @@ impl CommandArgs {
             .collect();
         println!("argfile args: {args:?}");
         // Get CLI args
-        let args: Self = Self::parse_from(args);
+        let mut args: Self = Self::parse_from(args);
+        // Trim any spaces in env var name
+        args.env_vars.iter_mut().for_each(|(k, _v)| {
+            *k = k.trim().to_string();
+        });
+        // Trim any spaces in path
+        args.path_additions.iter_mut().for_each(|path| {
+            *path = path.trim().to_string();
+        });
         args
     }
     /// Generate new PATH from prepending path additions to existing PATH
@@ -75,7 +83,6 @@ impl CommandArgs {
         self.env_vars
             .clone()
             .into_iter()
-            // .map(|(key, val)| (key.trim().to_string(), val.trim().to_string()))
             .collect()
     }
 
