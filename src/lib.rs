@@ -24,7 +24,8 @@ pub struct CommandArgs {
 }
 
 impl CommandArgs {
-    /// Get list of args for `std::process::Command` (i.e. ["-c", program_name, ...args])
+    /// Get list of args for `std::process::Command` (i.e. ["-c", `program_name`, ...`args`])
+    #[must_use]
     pub fn get_all_args() -> Self {
         // Get args and parse any from argfile if provided
         let mut args = argfile::expand_args(
@@ -36,7 +37,7 @@ impl CommandArgs {
             .into_iter()
             .filter(|arg| !arg.clone().into_string().unwrap().starts_with("#"))
             .collect();
-        println!("argfile args: {args:?}");
+        
         // Get CLI args
         let mut args: Self = Self::parse_from(args);
         // Trim any spaces in env var name
@@ -50,7 +51,7 @@ impl CommandArgs {
         args
     }
     /// Generate new PATH from prepending path additions to existing PATH
-    fn get_prepended_path(&self) -> Option<OsString> {
+    fn get_prepended_path(&self, env_vars: &Option<HashMap<String, String>>) -> Option<OsString> {
         if self.path_additions.is_empty() {
             return None;
         }
@@ -58,11 +59,27 @@ impl CommandArgs {
         let mut path_additions: Vec<String> = self.path_additions
             .iter()
             .map(|s| {
-                dunce::simplified(&PathBuf::from(s))
+                let abso_path = dunce::simplified(&PathBuf::from(s))
                     .to_string_lossy()
                     // Sometimes there is white space at the beginning or end
                     .trim()
-                    .to_string()
+                    .to_string();
+                
+                // Expand ~ and other env vars
+                let expanded = shellexpand::full_with_context_no_errors::<String, _, _, PathBuf, _>(
+                    &abso_path,
+                    || {None},
+                    |var_name| {
+                        if let Some(env_map) = &env_vars {
+                            // Get from our HashMap
+                            env_map.get(var_name)
+                        }
+                        else {
+                            None
+                        }
+                    }
+                );
+                expanded.to_string()
             })
             .collect();
         // get original path variable
@@ -80,10 +97,18 @@ impl CommandArgs {
     }
 
     fn get_env_vars(&self) -> HashMap<String, String> {
-        self.env_vars
-            .clone()
-            .into_iter()
-            .collect()
+        let mut env_vars_hashmap = HashMap::new();
+        for (var_name, value) in self.env_vars.clone() {
+            let expanded = shellexpand::full_with_context_no_errors::<String, _, _, PathBuf, _>(
+                &value, 
+                dirs::home_dir,
+                |key| {
+                    env_vars_hashmap.get(key)
+                } 
+            );
+            env_vars_hashmap.insert(var_name, expanded.to_string());
+        }
+        env_vars_hashmap
     }
 
     fn get_arg_list(&self) -> Vec<String> {
@@ -137,10 +162,10 @@ pub fn run(command_args: &CommandArgs) -> Result<ExitStatus, io::Error> {
     command
         .args(&final_args)
         // Set env variables
-        .envs(hash_map_vars);
+        .envs(&hash_map_vars);
     
     // If path_additions passed to CLI, get and set to new path
-    if let Some(new_path) = command_args.get_prepended_path() {
+    if let Some(new_path) = command_args.get_prepended_path(&Some(hash_map_vars)) {
         // Set PATH env var
         command.env("PATH", new_path);
     }
