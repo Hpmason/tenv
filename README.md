@@ -9,6 +9,29 @@ Install from source
 ```
 cargo install --path .
 ```
+
+## Arg Files
+Supports `argfile`s. see [example.tenv](./example.tenv) for an example. Can be used to set up an environment across multiple projects. For instance here's one that sets up a flutter environment:
+```
+# Flutter
+-p C:\dev\flutter\bin
+# Android SDK Locations
+-e ANDROID_SDK_ROOT=C:\Users\user1\AppData\Local\Android\Sdk
+-e ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT\ndk\25.0.8775105
+# Android SDK binaries
+-p $ANDROID_SDK_ROOT\tools\bin
+-p $ANDROID_SDK_ROOT\emulator
+```
+
+```bash
+# Spawn bash shell with flutter environment
+tenv @flutter.tenv bash
+```
+```powershell
+# Spawn new powersehll with flutter environment (Need to escape @ in powershell with `)
+tenv `@flutter.tenv powershell
+```
+
 ## Uses
 ### Running commands
 Bash
@@ -24,7 +47,7 @@ tenv -p C:\dev\hugo hugo
 
 Especially useful for RUST_BACKTRACE on Powershell
 ```powershell
-tenv -e RUST_BACKTRACE=1 cargo -- run
+tenv -e RUST_BACKTRACE=1 "cargo run"
 ```
 ### Shell environment
 Bash
