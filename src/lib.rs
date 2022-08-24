@@ -23,34 +23,63 @@ pub struct CommandArgs {
     args: Vec<String>,
 }
 
+pub(crate) mod helpers {
+    use std::ffi::OsString;
+
+    /// Expand path if it is an argfile arg
+    pub fn expand_argfile_path(arg: String) -> OsString {
+        // If it starts with the prefix, it is an argfile arg
+        if arg.starts_with(argfile::PREFIX) {
+            // get path by itself
+            let path = arg.strip_prefix(argfile::PREFIX).expect("Already checked for this prefix");
+            // Expand path
+            if let Ok(expanded) = shellexpand::full(&path) {
+                // re-add the prefix and convert to OsString
+                return OsString::from(format!("{}{}", argfile::PREFIX, expanded))
+            }
+        }
+        // If not an argfile arg or error expanding, just return arg as an OsString
+        arg.into()
+    }
+    /// Return true if line would be a comment if in an argfile
+    pub fn is_argfile_comment(arg: &OsString) -> bool {
+        !arg.to_string_lossy().starts_with('#')
+    }
+}
+
 impl CommandArgs {
     /// Get list of args for `std::process::Command` (i.e. ["-c", `program_name`, ...`args`])
-    #[must_use]
-    pub fn get_all_args() -> Self {
+    pub fn get_all_args() -> Result<Self, io::Error> {
+        // Expand all args and convert to OsString
+        let args_plain_iter = env::args()
+            .map(helpers::expand_argfile_path);
+        
         // Get args and parse any from argfile if provided
-        let mut args = argfile::expand_args(
+        let mut args_with_argfile = argfile::expand_args_from(
+            args_plain_iter,
             argfile::parse_fromfile,
             argfile::PREFIX,
-        ).unwrap();
-        // Filter out
-        args = args
+        )?;
+        
+        // Filter out comments (lines starting with '#')
+        args_with_argfile = args_with_argfile
             .into_iter()
-            .filter(|arg| !arg.clone().into_string().unwrap().starts_with("#"))
+            .filter(|arg| !helpers::is_argfile_comment(arg))
             .collect();
         
-        // Get CLI args
-        let mut args: Self = Self::parse_from(args);
+        // Get CLI args (parse_from is from `clap::derive::Parser`)
+        let mut command_args: Self = Self::parse_from(args_with_argfile);
         // Trim any spaces in env var name
-        args.env_vars.iter_mut().for_each(|(k, _v)| {
+        command_args.env_vars.iter_mut().for_each(|(k, _v)| {
             *k = k.trim().to_string();
         });
         // Trim any spaces in path
-        args.path_additions.iter_mut().for_each(|path| {
+        command_args.path_additions.iter_mut().for_each(|path| {
             *path = path.trim().to_string();
         });
-        args
+        Ok(command_args)
     }
-    /// Generate new PATH from prepending path additions to existing PATH
+    /// Generate new PATH by prepending path additions to existing PATH
     fn get_prepended_path(&self, env_vars: &Option<HashMap<String, String>>) -> Option<OsString> {
         if self.path_additions.is_empty() {
             return None;
