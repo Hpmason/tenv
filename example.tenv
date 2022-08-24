@@ -1,0 +1,12 @@
+# This is a comment and will be ignored when parsing args
+# Here's JAVA_HOME
+-e JAVA_HOME=/Program Files/AdoptOpenJDK/jdk-8.0.275.1-hotspot
+# You can expand JAVA_HOME like so:
+-e JAVA_BIN=$JAVA_HOME/bin
+# Then you can add it to path
+-p $JAVA_BIN
+# Env Vars not defined in here will no be used, so HOME_DIR will be literally "$HOME"
+-e HOME_DIR=$HOME
+# tilde will be expanded to the home directory
+-e CONFIG_DIR=~/config
+-p ~/bin
