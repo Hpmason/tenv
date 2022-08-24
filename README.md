@@ -23,6 +23,15 @@ Supports `argfile`s. see [example.tenv](./example.tenv) for an example. Can be u
 -p $ANDROID_SDK_ROOT\emulator
 ```
 
+```bash
+# Spawn bash shell with flutter environment
+tenv @flutter.tenv bash
+```
+```powershell
+# Spawn new powersehll with flutter environment (Need to escape @ in powershell with `)
+tenv `@flutter.tenv powershell
+```
+
 ## Uses
 ### Running commands
 Bash
