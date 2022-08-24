@@ -43,7 +43,7 @@ pub(crate) mod helpers {
     }
     /// Return true if line would be a comment if in an argfile
     pub fn is_argfile_comment(arg: &OsString) -> bool {
-        !arg.to_string_lossy().starts_with('#')
+        arg.to_string_lossy().starts_with('#')
     }
 }
 
