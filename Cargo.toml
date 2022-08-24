@@ -1,6 +1,6 @@
 [package]
 name = "tenv"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["Mason Ginter <mason@dagint.com>"]
 keywords = ["environment", "variables", "env"]
